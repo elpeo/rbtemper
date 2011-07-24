@@ -1,5 +1,6 @@
 
 USB温度計「TEMPer」のRubyライブラリです。
+たぶんLinuxでのみ動きます。
 
 TEMPerについては以下のページをご参照ください。
 http://www.pcsensor.com/index.php?_a=viewProd&productId=6
@@ -25,5 +26,6 @@ TEMPer と TEMPerV1.2 は製品名および外観は全く同じで見分けが�
 Bus 002 Device 006: ID 0c45:7401 Microdia
 と表示されればV1.2です。（BusとDeviceの値は異なる可能性があります。）
 
+コンパイルにはlibusbが必要です。
 使い方は test.rb をご参照ください。
 
