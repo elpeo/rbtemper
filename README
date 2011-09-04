@@ -3,29 +3,30 @@ USB温度計「TEMPer」のRubyライブラリです。
 たぶんLinuxでのみ動きます。
 
 TEMPerについては以下のページをご参照ください。
-http://www.pcsensor.com/index.php?_a=viewProd&productId=6
+http://www.pcsensor.com/index.php?_a=viewCat&catId=6
 
 日本では以下のサイトから購入することができます。
 http://www.thanko.jp/product/usb/usb-thermometer.html
 http://www.amazon.co.jp/dp/B004FI1570
+http://www.march-rabbit.jp/index.php?main_page=product_info&products_id=6295
 
-現在 TEMPerV1.2 にのみ対応しています。
-
-※以下のデバイスには対応していません。
+現在、以下のデバイスに対応しています。
 TEMPer（V1.2でないもの）
+TEMPer (gold)
+TEMPerV1.2
+
+※以下のデバイスは未確認です。
 TEMPer1 
 TEMPer2
 TEMPerHUM
 TEMPerNTC
-TEMPer (gold)
-
-TEMPer と TEMPerV1.2 は製品名および外観は全く同じで見分けがつきません。
-上記サイトで購入したとしても、V1.2でないものが届く可能性がありますのでご注意ください。
+TEMPer232
 
 温度計をPCに接続してlsusbコマンドを実行した時に、
-Bus 002 Device 006: ID 0c45:7401 Microdia
-と表示されればV1.2です。（BusとDeviceの値は異なる可能性があります。）
+ID 1130:660c Tenx Technology, Inc.
+または
+ID 0c45:7401 Microdia
+と表示されれば使用できる可能性があります。
 
 コンパイルにはlibusbが必要です。
 使い方は test.rb をご参照ください。
-

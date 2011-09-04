@@ -33,35 +33,51 @@
 
 #include <string.h>
 #include <errno.h>
-#include <signal.h> 
+#include <float.h>
  
  
-#define VERSION "1.0.0"
+#define INTERFACE1 (0x00)
+#define INTERFACE2 (0x01)
+#define SUPPORTED_DEVICES (2)
  
-#define VENDOR_ID  0x0c45
-#define PRODUCT_ID 0x7401
- 
-#define INTERFACE1 0x00
-#define INTERFACE2 0x01
- 
-const static int reqIntLen=8;
-const static int reqBulkLen=8;
-const static int endpoint_Int_in=0x82; /* endpoint 0x81 address for IN */
-const static int endpoint_Int_out=0x00; /* endpoint 1 address for OUT */
-const static int endpoint_Bulk_in=0x82; /* endpoint 0x81 address for IN */
-const static int endpoint_Bulk_out=0x00; /* endpoint 1 address for OUT */
-const static int timeout=5000; /* timeout in ms */
- 
+const static unsigned short vendor_id[] = { 
+0x1130,
+0x0c45
+};
+const static unsigned short product_id[] = { 
+0x660c,
+0x7401
+};
+
 const static char uTemperatura[] = { 0x01, 0x80, 0x33, 0x01, 0x00, 0x00, 0x00, 0x00 };
 const static char uIni1[] = { 0x01, 0x82, 0x77, 0x01, 0x00, 0x00, 0x00, 0x00 };
 const static char uIni2[] = { 0x01, 0x86, 0xff, 0x01, 0x00, 0x00, 0x00, 0x00 };
+const static char uCmd0[] = {    0,    0,    0,    0,    0,    0,    0,    0 };
+const static char uCmd1[] = {   10,   11,   12,   13,    0,    0,    2,    0 };
+const static char uCmd2[] = {   10,   11,   12,   13,    0,    0,    1,    0 };
+const static char uCmd3[] = { 0x52,    0,    0,    0,    0,    0,    0,    0 };
+const static char uCmd4[] = { 0x54,    0,    0,    0,    0,    0,    0,    0 };
 
-static int debug=0;
-static int calibration=0;
-
-static usb_dev_handle *find_lvr_winusb();
+const static int reqIntLen=8;
+const static int reqBulkLen=8;
+const static int timeout=5000; /* timeout in ms */
  
-static void usb_detach(usb_dev_handle *lvr_winusb, int iInterface) {
+static int debug=0;
+
+static int device_type(usb_dev_handle *lvr_winusb){
+	struct usb_device *dev;
+	int i;
+	dev = usb_device(lvr_winusb);
+	for(i =0;i < SUPPORTED_DEVICES;i++){
+			if (dev->descriptor.idVendor == vendor_id[i] && 
+				dev->descriptor.idProduct == product_id[i] ) {
+				return i;
+			}
+	}
+	return -1;
+}
+
+static int usb_detach(usb_dev_handle *lvr_winusb, int iInterface) {
 	int ret;
  
 	ret = usb_detach_kernel_driver_np(lvr_winusb, iInterface);
@@ -82,7 +98,38 @@ static void usb_detach(usb_dev_handle *lvr_winusb, int iInterface) {
 			printf("detach successful\n");
 		}
 	}
+	return ret;
 } 
+
+static usb_dev_handle *find_lvr_winusb() {
+ 
+	struct usb_bus *bus;
+	struct usb_device *dev;
+	int i;
+ 
+	for (bus = usb_busses; bus; bus = bus->next) {
+		for (dev = bus->devices; dev; dev = dev->next) {
+			for(i =0;i < SUPPORTED_DEVICES;i++){
+				if (dev->descriptor.idVendor == vendor_id[i] && 
+					dev->descriptor.idProduct == product_id[i] ) {
+					usb_dev_handle *handle;
+					if(debug) {
+						printf("lvr_winusb with Vendor Id: %x and Product Id: %x found.\n", vendor_id[i], product_id[i]);
+					}
+
+					if (!(handle = usb_open(dev))) {
+						if(debug){
+							printf("Could not open USB device\n");
+						}
+						return NULL;
+					}
+					return handle;
+				}
+			}
+		}
+	}
+	return NULL;
+}
 
 static usb_dev_handle* setup_libusb_access() {
 	usb_dev_handle *lvr_winusb;
@@ -137,35 +184,7 @@ static usb_dev_handle* setup_libusb_access() {
 	return lvr_winusb;
 }
  
-static usb_dev_handle *find_lvr_winusb() {
- 
-	struct usb_bus *bus;
-	struct usb_device *dev;
- 
-	for (bus = usb_busses; bus; bus = bus->next) {
-		for (dev = bus->devices; dev; dev = dev->next) {
-			if (dev->descriptor.idVendor == VENDOR_ID && 
-				dev->descriptor.idProduct == PRODUCT_ID ) {
-				usb_dev_handle *handle;
-				if(debug) {
-					printf("lvr_winusb with Vendor Id: %x and Product Id: %x found.\n", VENDOR_ID, PRODUCT_ID);
-				}
-
-				if (!(handle = usb_open(dev))) {
-					if(debug){
-						printf("Could not open USB device\n");
-					}
-					return NULL;
-				}
-				return handle;
-			}
-		}
-	}
-	return NULL;
-}
- 
- 
-static void ini_control_transfer(usb_dev_handle *dev) {
+static int ini_control_transfer(usb_dev_handle *dev) {
 	int r,i;
 
 	char question[] = { 0x01,0x01 };
@@ -176,7 +195,7 @@ static void ini_control_transfer(usb_dev_handle *dev) {
 		if(debug){
 			printf("USB control write"); 
 		}
-		return;
+		return -1;
 	}
 
 
@@ -184,9 +203,10 @@ static void ini_control_transfer(usb_dev_handle *dev) {
 		for (i=0;i<reqIntLen; i++) printf("%02x ",question[i] & 0xFF);
 		printf("\n");
 	}
+	return 0;
 }
  
-static void control_transfer(usb_dev_handle *dev, const char *pquestion) {
+static int control_transfer(usb_dev_handle *dev, const char *pquestion) {
 	int r,i;
 
 	char question[reqIntLen];
@@ -199,16 +219,17 @@ static void control_transfer(usb_dev_handle *dev, const char *pquestion) {
 		if(debug){
 			printf("USB control write");
 		}
-		return;
+		return -1;
 	}
 
 	if(debug) {
 		for (i=0;i<reqIntLen; i++) printf("%02x ",question[i]  & 0xFF);
 		printf("\n");
 	}
+	return 0;
 }
 
-static void interrupt_read(usb_dev_handle *dev) {
+static int interrupt_read(usb_dev_handle *dev) {
  
 	int r,i;
 	char answer[reqIntLen];
@@ -220,7 +241,7 @@ static void interrupt_read(usb_dev_handle *dev) {
 		if(debug){
 			printf("USB interrupt read");
 		}
-		return;
+		return -1;
 	}
 
 	if(debug) {
@@ -228,9 +249,10 @@ static void interrupt_read(usb_dev_handle *dev) {
     
 		printf("\n");
 	}
+	return 0;
 }
 
-static void interrupt_read_temperatura(usb_dev_handle *dev, float *tempC) {
+static int interrupt_read_temperatura(usb_dev_handle *dev, float *tempC) {
  
 	int r,i, temperature;
 	char answer[reqIntLen];
@@ -242,7 +264,7 @@ static void interrupt_read_temperatura(usb_dev_handle *dev, float *tempC) {
 		if(debug){
 			printf("USB interrupt read");
 		}
-		return;
+		return -1;
 	}
 
 
@@ -253,30 +275,78 @@ static void interrupt_read_temperatura(usb_dev_handle *dev, float *tempC) {
 	}
     
 	temperature = (answer[3] & 0xFF) + (answer[2] << 8);
-	temperature += calibration;
 	*tempC = temperature * (125.0 / 32000.0);
+	return 0;
+}
 
+static int get_data(usb_dev_handle *dev, char *buf, int len){
+	return usb_control_msg(dev, 0xa1, 1, 0x300, 0x01, (char *)buf, len, timeout);
+}
+
+static int get_temperature(usb_dev_handle *dev, float *tempC){
+	char buf[256];
+	int ret, temperature, i;
+
+	control_transfer(dev, uCmd1 );
+	control_transfer(dev, uCmd4 );
+	for(i = 0; i < 7; i++) {
+		control_transfer(dev, uCmd0 );
+	}
+	control_transfer(dev, uCmd2 );
+	ret = get_data(dev, buf, 256);
+	if(ret < 2) {
+		return -1;
+	}
+
+	temperature = (buf[1] & 0xFF) + (buf[0] << 8);	
+	*tempC = temperature * (125.0 / 32000.0);
+	return 0;
 }
 
 usb_dev_handle* pcsensor_open(){
 	usb_dev_handle *lvr_winusb = NULL;
+	char buf[256];
+	int i, ret;
 
 	if (!(lvr_winusb = setup_libusb_access())) {
 		return NULL;
 	} 
 
-	ini_control_transfer(lvr_winusb);
+	switch(device_type(lvr_winusb)){
+	case 0:
+		control_transfer(lvr_winusb, uCmd1 );
+		control_transfer(lvr_winusb, uCmd3 );
+		control_transfer(lvr_winusb, uCmd2 );
+		ret = get_data(lvr_winusb, buf, 256);
+		if(debug){	
+			printf("Other Stuff (%d bytes):\n", ret);
+			for(i = 0; i < ret; i++) {
+				printf(" %02x", buf[i] & 0xFF);
+				if(i % 16 == 15) {
+					printf("\n");
+				}
+			}
+			printf("\n");
+		}
+		break;
+	case 1:
+		ini_control_transfer(lvr_winusb);
       
-	control_transfer(lvr_winusb, uTemperatura );
-	interrupt_read(lvr_winusb);
+		control_transfer(lvr_winusb, uTemperatura );
+		interrupt_read(lvr_winusb);
  
-	control_transfer(lvr_winusb, uIni1 );
-	interrupt_read(lvr_winusb);
+		control_transfer(lvr_winusb, uIni1 );
+		interrupt_read(lvr_winusb);
  
-	control_transfer(lvr_winusb, uIni2 );
-	interrupt_read(lvr_winusb);
-	interrupt_read(lvr_winusb);
+		control_transfer(lvr_winusb, uIni2 );
+		interrupt_read(lvr_winusb);
+		interrupt_read(lvr_winusb);
+		break;
+	}
 
+	if(debug){
+		printf("device_type=%d\n", device_type(lvr_winusb));
+	}
 	return lvr_winusb;
 }
 
@@ -289,8 +359,19 @@ void pcsensor_close(usb_dev_handle* lvr_winusb){
 
 float pcsensor_get_temperature(usb_dev_handle* lvr_winusb){
 	float tempc;
-	control_transfer(lvr_winusb, uTemperatura );
-	interrupt_read_temperatura(lvr_winusb, &tempc);
+	int ret;
+	switch(device_type(lvr_winusb)){
+	case 0:
+		ret = get_temperature(lvr_winusb, &tempc);
+		break;
+	case 1:
+		control_transfer(lvr_winusb, uTemperatura );
+		ret = interrupt_read_temperatura(lvr_winusb, &tempc);
+		break;
+	}
+	if(ret < 0){
+		return FLT_MIN;
+	}
 	return tempc;
 }
 
