@@ -1,3 +1,6 @@
+12/29/2013 - Updated made to the pcsensor.c code based off of information provided from 
+Torbjørn Hergum to accomidate negative temperatures in the reader.
+Tested on a raspberry pi with a single temper1 unit only.
 
 USB温度計「TEMPer」のRubyライブラリです。
 たぶんLinuxでのみ動きます。
