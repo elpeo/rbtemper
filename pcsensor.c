@@ -1,4 +1,6 @@
 /*
+ * based on pcsensor.c by Michitaka Ohno and updatede to deal with negative temperatures
+ * using changes presented by Torbjørn Hergum in the temper1  
  * pcsensor.c by Michitaka Ohno (c) 2011 (elpeo@mars.dti.ne.jp)
  * based oc pcsensor.c by Juan Carlos Perez (c) 2011 (cray@isp-sl.com)
  * based on Temper.c by Robert Kavaler (c) 2009 (relavak.com)
@@ -254,7 +256,7 @@ static int interrupt_read(usb_dev_handle *dev) {
 
 static int interrupt_read_temperatura(usb_dev_handle *dev, float *tempC) {
  
-	int r,i, temperature;
+	int r,i,temperature;
 	char answer[reqIntLen];
 	bzero(answer, reqIntLen);
     
@@ -275,6 +277,18 @@ static int interrupt_read_temperatura(usb_dev_handle *dev, float *tempC) {
 	}
     
 	temperature = (answer[3] & 0xFF) + (answer[2] << 8);
+	
+	/* msb means the temperature is negative -- less than 0 Celsius -- and in 2'complement form.
+	* We can't be sure that the host uses 2's complement to store negative numbers
+	* so if the temperature is negative, we 'manually' get its magnitude
+	* by explicity getting it's 2's complement and then we return the negative of that.
+	*/
+
+		if ((answer[2] & 0x80)!=0) {
+		/* return the negative of magnitude of the temperature */
+			temperature = -((temperature ^ 0xffff)+1);
+		}
+	// end of the updates made for netgative temps
 	*tempC = temperature * (125.0 / 32000.0);
 	return 0;
 }
@@ -285,8 +299,8 @@ static int get_data(usb_dev_handle *dev, char *buf, int len){
 
 static int get_temperature(usb_dev_handle *dev, float *tempC){
 	char buf[256];
-	int ret, temperature, i;
-
+	int ret,i,temperature;
+	
 	control_transfer(dev, uCmd1 );
 	control_transfer(dev, uCmd4 );
 	for(i = 0; i < 7; i++) {
@@ -298,7 +312,22 @@ static int get_temperature(usb_dev_handle *dev, float *tempC){
 		return -1;
 	}
 
-	temperature = (buf[1] & 0xFF) + (buf[0] << 8);	
+	temperature = (buf[1] & 0xFF) + (buf[0] << 8);
+	
+		
+	/* msb means the temperature is negative -- less than 0 Celsius -- and in 2'complement form.
+	* We can't be sure that the host uses 2's complement to store negative numbers
+	* so if the temperature is negative, we 'manually' get its magnitude
+	* by explicity getting it's 2's complement and then we return the negative of that.
+	*/
+
+		if ((buf[0] & 0x80)!=0) {
+		/* return the negative of magnitude of the temperature */
+			temperature = -((temperature ^ 0xffff)+1);
+		}
+		
+	// end up the updates made.
+			
 	*tempC = temperature * (125.0 / 32000.0);
 	return 0;
 }
